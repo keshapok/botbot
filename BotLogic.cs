@@ -1,6 +1,5 @@
 using OpenCvSharp;
 using System;
-using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -34,61 +33,64 @@ namespace RFBot
 
         private Mat _prevGray = new Mat();
         private Rect _screenRegion = new Rect();
+        private readonly Rect _minimapRect = new Rect(860, 10, 110, 110); // Примерные координаты миникарты
+        private OpenCvSharp.Point _lastMinimapDirection = new OpenCvSharp.Point(-1, -1);
+        private IntPtr _hwnd;
 
         public BotLogic(MainForm form)
         {
             _form = form;
+            _hwnd = FindWindow(null, "[PREMIUM] RF Online");
             Task.Run(() => RunLoop());
         }
 
-        private void ToggleBot() => _botActive = !_botActive;
+        public void ToggleBot()
+        {
+            _botActive = !_botActive;
+            _form.UpdateStatus(_botActive ? "Статус: Активен" : "Статус: Неактивен", _botActive);
+        }
 
         private void RunLoop()
         {
-            var hwnd = FindWindow(null, "[PREMIUM] RF Online");
-            if (hwnd == IntPtr.Zero)
+            if (_hwnd == IntPtr.Zero)
             {
                 MessageBox.Show("Не найдено окно игры!");
                 return;
             }
 
+            GetClientRect(_hwnd, out RECT gameRect);
+            _screenRegion = new Rect(gameRect.Left, gameRect.Top,
+                gameRect.Right - gameRect.Left, gameRect.Bottom - gameRect.Top);
+
             while (true)
             {
-                if (_botActive)
+                using (Mat frame = CaptureGameWindow())
                 {
-                    using (var frame = CaptureGameWindow(hwnd))
-                    {
-                        if (!frame.Empty())
-                        {
-                            ProcessFrame(frame);
-                        }
-                    }
+                    if (frame.Empty())
+                        continue;
+
+                    ProcessFrame(frame, _hwnd);
                 }
 
-                System.Threading.Thread.Sleep(700);
+                Task.Delay(700).Wait();
             }
         }
 
-        private Mat CaptureGameWindow(IntPtr hwnd)
+        private Mat CaptureGameWindow()
         {
-            GetClientRect(hwnd, out RECT gameRect);
-            _screenRegion = new Rect(gameRect.Left, gameRect.Top,
-                gameRect.Right - gameRect.Left,
-                gameRect.Bottom - gameRect.Top);
-
-            using (Bitmap bitmap = new Bitmap(_screenRegion.Width, _screenRegion.Height))
-            using (Graphics g = Graphics.FromImage(bitmap))
+            using (var src = new Bitmap(_screenRegion.Width, _screenRegion.Height))
+            using (Graphics g = Graphics.FromImage(src))
             {
-                g.CopyFromScreen(_screenRegion.Location.X, _screenRegion.Location.Y, 0, 0, bitmap.Size);
-                return BitmapConverter.ToMat(bitmap);
+                g.CopyFromScreen(_screenRegion.Location.X, _screenRegion.Location.Y, 0, 0, src.Size);
+                return OpenCvSharp.Extensions.BitmapConverter.ToMat(src);
             }
         }
 
-        private void ProcessFrame(Mat frame)
+        private void ProcessFrame(Mat frame, IntPtr hwnd)
         {
             var gray = new Mat();
             Cv2.CvtColor(frame, gray, ColorConversionCodes.BGR2GRAY);
-            Cv2.GaussianBlur(gray, gray, new Size(11, 11), 0);
+            Cv2.GaussianBlur(gray, gray, new OpenCvSharp.Size(11, 11), 0);
 
             if (_prevGray.Empty())
             {
@@ -96,21 +98,29 @@ namespace RFBot
                 return;
             }
 
+            if (gray.Size() != _prevGray.Size())
+            {
+                gray.CopyTo(_prevGray);
+                return;
+            }
+
             var delta = new Mat();
-            Cv2.AbsDiff(gray, _prevGray, delta);
+            Cv2.Absdiff(gray, _prevGray, delta);  // Правильное имя метода
+
             var thresh = new Mat();
             Cv2.Threshold(delta, thresh, _motionThreshold, 255, ThresholdTypes.Binary);
             Cv2.Dilate(thresh, thresh, null);
+
             var contours = Cv2.FindContoursAsArray(thresh, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
 
-            var center = new Point(frame.Width / 2, frame.Height / 2);
+            var center = new OpenCvSharp.Point(frame.Width / 2, frame.Height / 2);
             foreach (var cnt in contours)
             {
                 double area = Cv2.ContourArea(cnt);
                 if (area < _minMobSize) continue;
 
                 Rect r = Cv2.BoundingRect(cnt);
-                Point mobCenter = new Point(r.X + r.Width / 2, r.Y + r.Height / 2);
+                OpenCvSharp.Point mobCenter = new OpenCvSharp.Point(r.X + r.Width / 2, r.Y + r.Height / 2);
                 double dist = Math.Sqrt(Math.Pow(mobCenter.X - center.X, 2) + Math.Pow(mobCenter.Y - center.Y, 2));
                 
                 if (dist <= _scanRadius)
@@ -119,6 +129,8 @@ namespace RFBot
                     break;
                 }
             }
+
+            gray.CopyTo(_prevGray);
         }
 
         private void AttackMob(Rect mob, IntPtr hwnd)
@@ -131,6 +143,7 @@ namespace RFBot
             MouseSimulator.MouseEvent(MouseSimulator.MouseEventFlags.LEFTDOWN);
             MouseSimulator.MouseEvent(MouseSimulator.MouseEventFlags.LEFTUP);
             SendKeys.SendWait(" ");
+            Console.WriteLine($"Атака на координаты: ({targetX}, {targetY})");
         }
     }
 }
