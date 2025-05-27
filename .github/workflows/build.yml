@@ -21,10 +21,10 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      - name: Build and Publish (Single File)
+      - name: Build and Publish Single File
         run: |
           cd ${{ github.workspace }}
-          dotnet publish -r win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --configuration Release
+          dotnet publish -r win-x64 -p:PublishSingleFile=true --configuration Release
 
       - name: Upload EXE
         uses: actions/upload-artifact@v2
