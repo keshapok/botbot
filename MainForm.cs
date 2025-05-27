@@ -7,7 +7,7 @@ namespace RFBot
 {
     public partial class MainForm : Form
     {
-        private readonly BotLogic _bot;
+        private BotLogic _bot;
 
         public MainForm()
         {
@@ -19,15 +19,12 @@ namespace RFBot
         {
             this.SuspendLayout();
 
-            // START Button
             var startButton = new Button { Text = "START", Location = new Point(10, 10), Size = new Size(100, 40) };
-            startButton.Click += (sender, args) => _bot.ToggleBot();
+            startButton.Click += (s, e) => _bot.ToggleBot();
 
-            // EXIT Button
             var exitButton = new Button { Text = "EXIT", Location = new Point(120, 10), Size = new Size(100, 40) };
-            exitButton.Click += (sender, args) => Application.Exit();
+            exitButton.Click += (s, e) => Application.Exit();
 
-            // Status Label
             var statusLabel = new Label
             {
                 Name = "statusLabel",
@@ -40,10 +37,18 @@ namespace RFBot
             Controls.Add(exitButton);
             Controls.Add(statusLabel);
 
+            this.KeyPreview = true;
+            this.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.F12)
+                {
+                    _bot.ToggleBot();
+                }
+            };
+
             this.Text = "RF Bot — Mob Hunter";
             this.Width = 800;
             this.Height = 600;
-
             this.ResumeLayout(false);
         }
 
