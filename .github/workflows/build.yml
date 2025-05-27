@@ -10,23 +10,24 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v3
         with:
-          version: '6.0.x'
+          version: '7.0.x'
 
       - name: Restore dependencies
         run: dotnet restore
 
-      - name: Build and publish
+      - name: Build and Publish (Single File)
         run: |
           cd ${{ github.workspace }}
-          dotnet publish -r win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --self-contained true -c Release -o ./publish
+          dotnet publish -r win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --configuration Release
 
       - name: Upload EXE
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
-          name: rf-bot-exe
-          path: ./publish/
+          name: bot-executable
+          path: ${{ github.workspace }}\bin\Release\net7.0\win-x64\publish\
