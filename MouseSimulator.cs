@@ -1,11 +1,13 @@
 using System;
 using System.Runtime.InteropServices;
-using System.Windows.Forms;
 
 public static class MouseSimulator
 {
-    [DllImport("user32.dll", SetLastError = true)]
+    [DllImport("user32.dll")]
     private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
+
+    [DllImport("user32.dll")]
+    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
     public enum MouseEventFlags : uint
     {
