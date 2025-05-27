@@ -1,20 +1,56 @@
-- name: Create Release
-  id: create_release
-  uses: actions/create-release@v1
-  env:
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  with:
-    tag_name: v1
-    release_name: RF Bot Release
-    draft: false
-    prerelease: false
+name: Build and Create GitHub Release
 
-- name: Upload EXE to Release
-  uses: actions/upload-release-asset@v1
-  env:
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  with:
-    upload_url: ${{ steps.create_release.outputs.upload_url }}
-    asset_path: ./publish/bot.exe
-    asset_name: bot.exe
-    asset_content_type: application/octet-stream
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Возможность запуска вручную
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v3
+        with:
+          version: '7.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build and Publish Single File
+        run: |
+          cd ${{ github.workspace }}
+          dotnet publish -r win-x64 -p:PublishSingleFile=true --configuration Release
+
+      - name: Locate EXE
+        id: find-exe
+        run: |
+          echo "EXE_PATH=${{ github.workspace }}\bin\Release\net7.0\win-x64\publish\bot.exe" >> $GITHUB_ENV
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v1
+          release_name: RF Bot Release
+          draft: false
+          prerelease: false
+
+      - name: Upload EXE to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ env.EXE_PATH }}
+          asset_name: bot.exe
+          asset_content_type: application/octet-stream
